@@ -1,14 +1,16 @@
+import lexical.Analyzer;
+
 import java.util.*;
 import java.io.FileReader;
 import java.io.BufferedReader;
 import java.io.EOFException;
 
-public class main{  
+public class Compile{  
 
   public static String readProgram(String fileName){
     // definir dados
     String arq = "";
-    String path = "./Inputs/" + fileName;
+    String path = "./../Inputs/" + fileName;
 
     try{
       // definir buffer de leitura
@@ -41,7 +43,7 @@ public class main{
     // ler programa
     arquivoEntrada = readProgram("program0.txt");
 
-    LexicalAnalizer lexer = new LexicalAnalizer(arquivoEntrada);
+    Analyzer lexer = new Analyzer(arquivoEntrada);
 
     System.out.println("=== FIM ===");
   }
