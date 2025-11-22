@@ -10,7 +10,7 @@ public class Compile{
   public static String readProgram(String fileName){
     // definir dados
     String arq = "";
-    String path = "./../Inputs/" + fileName;
+    String path = "./Inputs/" + fileName;
 
     try{
       // definir buffer de leitura
@@ -41,9 +41,10 @@ public class Compile{
     String arquivoEntrada = ""; 
 
     // ler programa
-    arquivoEntrada = readProgram("program0.txt");
+    arquivoEntrada = readProgram("program1.cf");
 
     Analyzer lexer = new Analyzer(arquivoEntrada);
+    lexer.printTokens();
 
     System.out.println("=== FIM ===");
   }
