@@ -11,14 +11,17 @@ public class Analyzer {
     private String[] relationalOperators = {"<", "<=", ">", ">=", "==", "<>", "=", "&", "^"};
     private String[] otherSymbols = {";", "{", "}", "$", "$$", "\"", "(", ")", ","};
     private String[] booleanValues = {"verdade", "mentira"};
-    private String[]   = {"Enquanto", "Se", "Senao", "Para", "Imprimir"};
+    private String[] command = {"Enquanto", "Se", "Senao", "Para", "Imprimir"};
     private String[] types = {"Inteiro", "Logico", "Caractere"};
-
+    
+    // dados para controle de leitura do analisador léxico
     private int initPos = 0;
     private int currentPos = 0;
 
+    // string regex para tratamento da entrada
     private String regexString = "\n";
     
+    // resultado do analisador
     private ArrayList<String> tokens = new ArrayList<String>();
     
     public Analyzer(String input){
@@ -30,23 +33,28 @@ public class Analyzer {
             String tmp = ""; 
             char charAnalytic = inputString.charAt(currentPos); 
             
-            if(Contains(charAnalytic, otherSymbols))
+            if(ContainsFirstElement(charAnalytic, types)){
                 
-                tmp = String.valueOf(charAnalytic);
+                System.out.println("The first element can be contained in \"Types\" ");
+
+            } else if(Contains(charAnalytic, otherSymbols)){
+                
+                tmp = String.valueOf(charAnalytic); // Inseri-los na analise direto como um terminal
                 tokens.add(tmp);
 
             } else if(Contains(charAnalytic, arithmeticOperators)){
 
-                
+                tmp = "ARITHMETIC_OPERATOR: " + charAnalytic;
+                tokens.add(tmp);
                 
             } else if(Contains(charAnalytic, relationalOperators)){
                 
-                tmp = "RELATIONAL OPERATOR:" + charAnalytic;
+                tmp = "RELATIONAL_OPERATOR:" + charAnalytic;
                 tokens.add(tmp);
 
             } else if(Contains(charAnalytic, arithmeticOperators)){
                 
-                tmp = "OPERATORS: " + inputString.charAt(currentPos); 
+                tmp = "OPERATORS: " + charAnalytic; 
                 tokens.add(tmp);
             }
              else if(Contains(charAnalytic, number)){
@@ -65,6 +73,7 @@ public class Analyzer {
         }
     }
     
+    
     public String ReadInteiro(String input){ 
         String numero = ""; 
         char charAnalytic = input.charAt(currentPos);
@@ -80,6 +89,47 @@ public class Analyzer {
         return numero;
     }
 
+    public String TryReadTypes(String input){
+
+        // definir dados
+        boolean success = false;
+        String result = "";
+
+        for(int i=0; i< input.length(); i++){
+            // resgatar o Tipo analisado
+            String typeAnalytic = types[i]; 
+            
+            do{
+                // resgatar o caractere tipo analisado
+               char charAnalytic = typeAnalytic.charAt(currentPos);
+                
+               
+
+            }while();
+
+        }
+        
+        
+        // Voltar para o ultimo caractere lido
+        currentPos--;
+
+        return result;
+    }
+
+    public boolean ContainsFirstElement(char c, String arrayString[]){
+        // Definir dados
+        boolean resultado = false;
+        String character = String.valueOf(c);
+        
+        // Procurar caractere no array
+        for(int i = 0; !resultado && i < arrayString.length; i++){
+            String firstCharacterForString = String.valueOf(arrayString[i].charAt(0)); 
+            resultado = resultado || (character.equals(firstCharacterForString));
+        }
+        
+        return resultado;
+    }
+
     public boolean Contains(char c, String arrayString[]){
         // Definir dados
         boolean resultado = false;
@@ -87,7 +137,7 @@ public class Analyzer {
         
         // Procurar caractere no array
         for(int i = 0; !resultado && i < arrayString.length; i++){ 
-            resultado = resultado || (character.equals(number[i]));
+            resultado = resultado || (character.equals(arrayString[i]));
         }
         
         return resultado;
