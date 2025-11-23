@@ -31,7 +31,7 @@ public class AnalyzerFinal {
             "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u",
             "v", "w", "x", "y", "z",
             "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U",
-            "V", "W", "X", "Y", "Z", "\r", " ", "\t", "\n"
+            "V", "W", "X", "Y", "Z", "\r", " ", "\t", "\n", "\'", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "\0" 
     };
 
     // Mapa dos indices da matriz de transição
@@ -56,7 +56,7 @@ public class AnalyzerFinal {
         input += "\0\0";
 
         mapIndex = createIndexCharacters(); // definir indices
-        matrixTransaction = createTableTransaction(); // definir matriz de transição
+        matrixTransaction = createTableTransaction("Transaction6.csv", 77); // definir matriz de transição
 
         String c = "";
         String lookAHead = "";
@@ -78,7 +78,7 @@ public class AnalyzerFinal {
                 initPos = currentPos;
             }
 
-            if (!c.equals("\0")) {
+            //if (!c.equals("\0")) {
 
                 // Executar automato
                 currentState = readElementTable(currentState, c);
@@ -208,7 +208,7 @@ public class AnalyzerFinal {
                         break;
                     case 62:
                         item = new ItemTableSymbol(tableSymbols.size(), getChar(input, currentPos),
-                                getChar(input, currentState), 0);
+                                getChar(input, currentPos), 0);
                         tableSymbols.add(item);
                         initPos = ++currentPos;
 
@@ -228,7 +228,7 @@ public class AnalyzerFinal {
 
                         break;
                     case 64:
-                        if (!lookAHead.equals("*")) {
+                        if (  !lookAHead.equals("*") || getChar(input, currentPos-1).equals("*") && getChar(input, currentPos-2).equals("*") ) {
                             item = new ItemTableSymbol(tableSymbols.size(), "MATH_OPERATOR",
                                     input.substring(initPos, currentPos + 1), 0);
                             tableSymbols.add(item);
@@ -239,7 +239,7 @@ public class AnalyzerFinal {
                             currentPos++;
                         break;
                     case 66:
-                        if (!(lookAHead.equals(">") || lookAHead.equals("="))) {
+                        if (!(lookAHead.equals(">") || lookAHead.equals("="))   ) {
                             item = new ItemTableSymbol(tableSymbols.size(), "LOGIC_OPERATOR",
                                     input.substring(initPos, currentPos + 1), 0);
                             tableSymbols.add(item);
@@ -262,7 +262,8 @@ public class AnalyzerFinal {
 
                         break;
                     case 70:
-                        if (!lookAHead.equals("=")) {
+                        if (!lookAHead.equals("=") || 
+                            (getChar(input, currentPos-1).equals("=")  && getChar(input, currentPos-2).equals("="))) {
                             item = new ItemTableSymbol(tableSymbols.size(), input.substring(initPos, currentPos + 1),
                                     input.substring(initPos, currentPos + 1), 0);
                             tableSymbols.add(item);
@@ -273,8 +274,40 @@ public class AnalyzerFinal {
                             currentPos++;
 
                         break;
+                    case 72:
+                            item = new ItemTableSymbol(tableSymbols.size(), "STRING",
+                            input.substring(initPos, currentPos + 1), 0);
+                            tableSymbols.add(item);
+                            
+                            initPos = ++currentPos;
+                            
+                            currentState = 0;
+                    break;
+                    case 73:
+                        if (!Contains(lookAHead, number)) {
+
+                            item = new ItemTableSymbol(tableSymbols.size(), "NUMERO",
+                            input.substring(initPos, currentPos + 1), 0);
+                            tableSymbols.add(item);
+                            
+                            initPos = ++currentPos;
+                            
+                            currentState = 0;
+                        }else
+                            currentPos++;
+                    break;
+                    case 76:
+                        item = new ItemTableSymbol(tableSymbols.size(), "CARACTERE",
+                                    input.substring(initPos, currentPos + 1), 0);
+                        tableSymbols.add(item);
+                        initPos = ++currentPos;
+
+                        currentState = 0;
+                    break;
                     case -1:
-                        System.err.println("ERRO NA ANÁLISE LÉXICA");
+                        item = new ItemTableSymbol(tableSymbols.size(), "ERRO NA ANÁLISE LÉXICA",
+                                    "-1", 0);
+                        tableSymbols.add(item);
                         i = input.length();
                         currentState = 0;
 
@@ -283,7 +316,7 @@ public class AnalyzerFinal {
                         currentPos++;
                         break;
                 }
-            }
+            //}
         }
     }
 
@@ -306,12 +339,12 @@ public class AnalyzerFinal {
         return indexes;
     }
 
-    private String[][] createTableTransaction() {
+    private String[][] createTableTransaction(String nameAqr, int pQtdStates) {
         // Definir dados
-        int qtdStates = 71;
+        int qtdStates = pQtdStates;
         int qtdSymbols = indices.length;
 
-        return lerCSV("./TransactionTable/Transaction3.csv", new String[qtdStates][qtdSymbols]);
+        return lerCSV("./TransactionTable/" + nameAqr, new String[qtdStates][qtdSymbols]);
     }
 
     public static String[][] lerCSV(String caminhoArquivo, String[][] matrix) {
@@ -364,12 +397,20 @@ public class AnalyzerFinal {
         return resultado;
     }
 
-    public void printTokens(){
+    public void printClassTokens(){
         for(int i=0; i<tableSymbols.size(); i++){
             ItemTableSymbol item = tableSymbols.get(i);
             System.out.println(item.Class);
         }
 
     }
+
+    public void printValueTokens(){
+        for(int i=0; i<tableSymbols.size(); i++){
+            ItemTableSymbol item = tableSymbols.get(i);
+            System.out.println(item.Value);
+        }
+
+    }    
 
 }

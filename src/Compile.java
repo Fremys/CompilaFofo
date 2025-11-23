@@ -40,7 +40,7 @@ public class Compile{
     // Analyzer lexer = new Analyzer(arquivoEntrada);
     AnalyzerFinal lexer = new AnalyzerFinal(arquivoEntrada);
 
-    lexer.printTokens();
+    lexer.printValueTokens();
 
     System.out.println("=== FIM ===");
   }

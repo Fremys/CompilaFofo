@@ -1,7 +1,7 @@
 package symbolTable;
 
 public class ItemTableSymbol {
-
+    
     public int Id;
     public String Class; 
     public Object Value;
