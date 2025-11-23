@@ -56,7 +56,7 @@ public class AnalyzerFinal {
         input += "\0\0";
 
         mapIndex = createIndexCharacters(); // definir indices
-        matrixTransaction = createTableTransaction("Transaction6.csv", 77); // definir matriz de transição
+        matrixTransaction = createTableTransaction("TransactionFinal.csv", 77); // definir matriz de transição
 
         String c = "";
         String lookAHead = "";
@@ -89,9 +89,9 @@ public class AnalyzerFinal {
                         break;
                     case 1:
                         item = new ItemTableSymbol(tableSymbols.size(), "MATH_OPERATOR",
-                                input.substring(initPos, currentPos + 1), 0);
+                        input.substring(initPos, currentPos + 1), 0);
                         tableSymbols.add(item);
-
+                        
                         initPos = ++currentPos; // Passar para o próximo caractere
                         currentState = 0;
 
@@ -412,5 +412,9 @@ public class AnalyzerFinal {
         }
 
     }    
+
+    public ArrayList<ItemTableSymbol> getTableSymbol(){
+        return tableSymbols;
+    }
 
 }
