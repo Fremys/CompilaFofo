@@ -56,7 +56,7 @@ public class AnalyzerFinal {
         input += "\0\0";
 
         mapIndex = createIndexCharacters(); // definir indices
-        matrixTransaction = createTableTransaction("Transaction6.csv", 77); // definir matriz de transição
+        matrixTransaction = createTableTransaction("TransactionFinal.csv", 77); // definir matriz de transição
 
         String c = "";
         String lookAHead = "";
@@ -113,10 +113,9 @@ public class AnalyzerFinal {
                                     input.substring(initPos, currentPos + 1), 0);
                             tableSymbols.add(item);
                             initPos = ++currentPos;
-                            currentState = 0;
-                            currentPos++;
+                            currentState = 0;                           
                         } else
-
+                             currentPos++;
                             break;
                     case 21:
                         if (!Contains(lookAHead, letters)) {
@@ -412,5 +411,11 @@ public class AnalyzerFinal {
         }
 
     }    
+
+    // Obtendo lista de tokens
+    public ArrayList<ItemTableSymbol> getTableSymbols() {
+        return this.tableSymbols;
+    }
+
 
 }
