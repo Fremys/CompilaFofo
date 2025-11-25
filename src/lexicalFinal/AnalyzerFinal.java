@@ -239,7 +239,7 @@ public class AnalyzerFinal {
                             currentPos++;
                         break;
                     case 66:
-                        if (!(lookAHead.equals(">") || lookAHead.equals("="))   ) {
+                        if (!(lookAHead.equals(">") || lookAHead.equals("=") || lookAHead.equals("-"))   ) {
                             item = new ItemTableSymbol(tableSymbols.size(), "LOGIC_OPERATOR",
                                     input.substring(initPos, currentPos + 1), 0);
                             tableSymbols.add(item);
@@ -262,16 +262,12 @@ public class AnalyzerFinal {
 
                         break;
                     case 70:
-                        if (!lookAHead.equals("=") || 
-                            (getChar(input, currentPos-1).equals("=")  && getChar(input, currentPos-2).equals("="))) {
-                            item = new ItemTableSymbol(tableSymbols.size(), input.substring(initPos, currentPos + 1),
-                                    input.substring(initPos, currentPos + 1), 0);
-                            tableSymbols.add(item);
+                        item = new ItemTableSymbol(tableSymbols.size(), input.substring(initPos, currentPos + 1),
+                                input.substring(initPos, currentPos + 1), 0);
+                        tableSymbols.add(item);
 
-                            initPos = ++currentPos;
-                            currentState = 0;
-                        } else
-                            currentPos++;
+                        initPos = ++currentPos;
+                        currentState = 0;
 
                         break;
                     case 72:
