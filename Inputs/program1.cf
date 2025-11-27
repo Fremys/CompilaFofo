@@ -1,6 +1,3 @@
-$$ ola mundo "
-
-$$
-
-Inteiro i <- 3;
-Logico teste = mentira;
+Para i em (1+1, 3+5, 1+2){
+    Inteiro teste <- 5;
+}
