@@ -1,9 +1,9 @@
-import lexical.Analyzer;
-
 import java.util.*;
 
-import lexialalt.Analyzeralt;
 import lexicalFinal.AnalyzerFinal;
+import auxStructures.*;
+import syntatic.ParseException;
+import syntatic.Parser;
 
 import java.io.FileReader;
 import java.nio.file.Files;
@@ -33,6 +33,8 @@ public class Compile{
 
     // definir dados
     String arquivoEntrada = ""; 
+    ArrayList<ItemTableSymbol> tabelaSimbolos = new ArrayList<ItemTableSymbol>();
+    ArrayList<Token> tokens = new ArrayList<Token>();
 
     // ler programa
     arquivoEntrada = readProgram("program1.cf");
@@ -40,8 +42,23 @@ public class Compile{
     // Analyzer lexer = new Analyzer(arquivoEntrada);
     AnalyzerFinal lexer = new AnalyzerFinal(arquivoEntrada);
 
-    lexer.printClassTokens();
+    tabelaSimbolos = lexer.getTableSymbols(); // resgatar a tabela de simbolos
+    tokens = lexer.getTokens(); // resgatar os tokens gerados
 
-    System.out.println("=== FIM ===");
+    // adicionar sentinel EOF (caso não tenha)
+    tokens.add(new Token("EOF", "EOF"));
+
+    // lexer.printTokens("class");
+
+    // criar parser
+    Parser parser = new Parser(tokens);
+    try {
+        parser.parseProgram();
+        System.out.println("Analise sintática concluída: sem erros.");
+    } catch (ParseException e) {
+        System.out.println("Erro sintático: " + e.getMessage());
+    }
+
+    // System.out.println("=== FIM ===");
   }
 }
