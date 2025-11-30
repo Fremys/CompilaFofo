@@ -1,4 +1,5 @@
 package symbolTable;
+
 import java.util.ArrayList;
 
 public class Parser {
@@ -10,239 +11,257 @@ public class Parser {
         this.tokens = tokens;
     }
 
-    // utilitários
-    private ItemTableSymbol peekToken() {
+    // ------------------------ Utilitários ------------------------
+
+    private ItemTableSymbol peek() {
         if (pos < tokens.size()) return tokens.get(pos);
-        // token sentinel de fim
         return new ItemTableSymbol(-1, "EOF", "EOF", 0);
     }
 
-    private ItemTableSymbol consumeToken() {
-        ItemTableSymbol t = peekToken();
+    private ItemTableSymbol eat(String expectedClass) throws ParseException {
+        ItemTableSymbol t = peek();
+        if (!t.Class.equals(expectedClass) && !t.Value.equals(expectedClass)) {
+            throw new ParseException(
+                "Esperado token " + expectedClass +
+                " mas encontrado: " + t.Class + " (" + t.Value + ")"
+            );
+        }
         pos++;
         return t;
     }
 
-    // Match por classe (ex.: "IDENTIFY") e opcionalmente por valor (ex.: "Se")
-    private ItemTableSymbol match(String expectedClass) throws ParseException {
-        ItemTableSymbol t = peekToken();
-        if (t.Class.equals(expectedClass)) {
-            return consumeToken();
-        }
-        throw new ParseException("Esperava token da classe '" + expectedClass + "', encontrado '" + t.Class + "' (valor='" + t.Value + "') na posição " + pos);
+    private boolean check(String className) {
+        ItemTableSymbol t = peek();
+        return t.Class.equals(className) || t.Value.equals(className);
     }
 
-    private ItemTableSymbol match(String expectedClass, String expectedValue) throws ParseException {
-        ItemTableSymbol t = peekToken();
-        if (t.Class.equals(expectedClass) && t.Value.equals(expectedValue)) {
-            return consumeToken();
-        }
-        throw new ParseException("Esperava '" + expectedValue + "', encontrado '" + t.Value + "' (classe='" + t.Class + "') na posição " + pos);
-    }
+    // ------------------------ PROGRAM ------------------------
 
-    // entry point
     public void parseProgram() throws ParseException {
-        parseStmtList();
-        // opcional: checar que consumiu todos tokens
-        if (!peekToken().Class.equals("EOF")) {
-            ItemTableSymbol t = peekToken();
-            throw new ParseException("Token extra após fim do programa: '" + t.Value + "' na posição " + pos);
+        while (!check("EOF")) {
+            parseTopItem();
         }
+        eat("EOF");
     }
 
-    // <stmt_list> ::= { <stmt> }
-    private void parseStmtList() throws ParseException {
-        while (!peekToken().Class.equals("EOF") && !peekToken().Value.equals("}")) {
-            parseStmt();
-        }
-    }
+    // ------------------------ TOP_ITEM ------------------------
 
-    // <stmt> ::= <decl> | <assign> | <if_stmt> | <while_stmt> | <for_stmt> | <print_stmt> | "{" <stmt_list> "}"
-    private void parseStmt() throws ParseException {
-        ItemTableSymbol t = peekToken();
-
-        if (t.Class.equals("TYPE")) {
-            parseDecl();
-        } else if (t.Class.equals("IDENTIFY")) {
-            parseAssign();
-        } else if (t.Class.equals("COMMAND")) {
-            // comandos: Se, Enquanto, Para, Imprimir, Senao (Senao será tratado no if)
-            if (t.Value.equals("Se")) parseIf();
-            else if (t.Value.equals("Enquanto")) parseWhile();
-            else if (t.Value.equals("Para")) parseFor();
-            else if (t.Value.equals("Imprimir")) parsePrint();
-            else throw new ParseException("Comando desconhecido: " + t.Value + " na posição " + pos);
-        } else if (t.Value.equals("{")) {
-            consumeToken(); // consome '{'
-            parseStmtList();
-            match("MATH_OPERATOR", "}"); // ou se sua tabela marca "}" de outra forma, adapte
-            // se não usa MATH_OPERATOR para '}', verifique a classe real (talvez "}" seja classificada com próprio caractere)
+    private void parseTopItem() throws ParseException {
+        if (isType()) {
+            parseDeclaration();
         } else {
-            throw new ParseException("Início de sentença inválido: " + t.Value + " (classe=" + t.Class + ") na posição " + pos);
+            parseStatement();
         }
     }
 
-// Declaração: <type> IDENTIFY [ "=" <expression> ] ";"
-private void parseDecl() throws ParseException {
-
-    match("TYPE");         // Inteiro / Logico / Caractere
-    match("IDENTIFY");     // nome da variável
-
-    // inicialização opcional
-    if (peekToken().Value.equals("=")) {
-        consumeToken();    // consume '='
-        parseExpression(); // lê o valor
+    private boolean isType() {
+        return check("TYPE");
     }
 
-    // exige ponto-e-vírgula
-    if (peekToken().Value.equals(";")) {
-        consumeToken();
-    } else {
-        throw new ParseException("Esperava ';' ao final da declaração na posição " + pos);
-    }
-}
+    // ------------------------ DECLARATION ------------------------
 
-
-    // Atribuição: IDENTIFY '=' <expression> ';'
-    private void parseAssign() throws ParseException {
-        match("IDENTIFY");
-        // '=' provavelmente foi classificado como LOGIC_OPERATOR ou como outro; adapte se necessário.
-        ItemTableSymbol t = peekToken();
-        if (t.Value.equals("=")) consumeToken();
-        else throw new ParseException("Esperava '=' em atribuição na posição " + pos);
-        parseExpression();
-        if (peekToken().Value.equals(";")) consumeToken();
-        else throw new ParseException("Esperava ';' ao final da atribuição na posição " + pos);
+    private void parseDeclaration() throws ParseException {
+        parseType();
+        parseVarList();
+        eat("SYMBOL"); // ;
     }
 
-    // If: Se ( expr ) stmt [Senao stmt]
-    private void parseIf() throws ParseException {
-        match("COMMAND", "Se");
-        if (!peekToken().Value.equals("(")) throw new ParseException("Esperava '(' após 'Se' na posição " + pos);
-        consumeToken(); // '('
-        parseExpression();
-        if (!peekToken().Value.equals(")")) throw new ParseException("Esperava ')' após condição do 'Se' na posição " + pos);
-        consumeToken(); // ')'
-        parseStmt();
-        if (peekToken().Class.equals("COMMAND") && peekToken().Value.equals("Senao")) {
-            consumeToken();
-            parseStmt();
-        }
-    }
-
-    // While: Enquanto ( expr ) stmt
-    private void parseWhile() throws ParseException {
-        match("COMMAND", "Enquanto");
-        if (!peekToken().Value.equals("(")) throw new ParseException("Esperava '(' após 'Enquanto' na posição " + pos);
-        consumeToken();
-        parseExpression();
-        if (!peekToken().Value.equals(")")) throw new ParseException("Esperava ')' após condição do 'Enquanto' na posição " + pos);
-        consumeToken();
-        parseStmt();
-    }
-
-    // For simplificado: Para ( assign_no_semicolon expression ; assign_no_semicolon ) stmt
-    private void parseFor() throws ParseException {
-        match("COMMAND", "Para");
-        if (!peekToken().Value.equals("(")) throw new ParseException("Esperava '(' após 'Para' na posição " + pos);
-        consumeToken();
-        // assign_no_semicolon: IDENTIFY = expr
-        if (!peekToken().Class.equals("IDENTIFY")) throw new ParseException("Esperava identificador no for na posição " + pos);
-        match("IDENTIFY");
-        if (!peekToken().Value.equals("=")) throw new ParseException("Esperava '=' no for na posição " + pos);
-        consumeToken();
-        parseExpression();
-        if (!peekToken().Value.equals(";")) throw new ParseException("Esperava ';' no for na posição " + pos);
-        consumeToken();
-        if (!peekToken().Class.equals("IDENTIFY")) throw new ParseException("Esperava identificador no for (2) na posição " + pos);
-        match("IDENTIFY");
-        if (!peekToken().Value.equals("=")) throw new ParseException("Esperava '=' no for (2) na posição " + pos);
-        consumeToken();
-        parseExpression();
-        if (!peekToken().Value.equals(")")) throw new ParseException("Esperava ')' final do for na posição " + pos);
-        consumeToken();
-        parseStmt();
-    }
-
-    // Print: Imprimir ( expr ) ;
-    private void parsePrint() throws ParseException {
-        match("COMMAND", "Imprimir");
-        if (!peekToken().Value.equals("(")) throw new ParseException("Esperava '(' após 'Imprimir' na posição " + pos);
-        consumeToken();
-        parseExpression();
-        if (!peekToken().Value.equals(")")) throw new ParseException("Esperava ')' após expressão em Imprimir na posição " + pos);
-        consumeToken();
-        if (!peekToken().Value.equals(";")) throw new ParseException("Esperava ';' após Imprimir na posição " + pos);
-        consumeToken();
-    }
-
-    // ---------- EXPRESSIONS ----------
-    // Implementação simplificada com precedência
-
-    private void parseExpression() throws ParseException {
-        parseLogicOr();
-    }
-
-    private void parseLogicOr() throws ParseException {
-        parseLogicAnd();
-        while (peekToken().Value.equals("^")) {
-            consumeToken();
-            parseLogicAnd();
-        }
-    }
-
-    private void parseLogicAnd() throws ParseException {
-        parseRelExpr();
-        while (peekToken().Value.equals("&")) {
-            consumeToken();
-            parseRelExpr();
-        }
-    }
-
-    private void parseRelExpr() throws ParseException {
-        parseArithmetic();
-        String v = (String) peekToken().Value;
-        if (v.equals("=") || v.equals("<>") || v.equals("<") || v.equals("<=") || v.equals(">") || v.equals(">=")) {
-            consumeToken();
-            parseArithmetic();
-        }
-    }
-
-    private void parseArithmetic() throws ParseException {
-        parseTerm();
-        while (peekToken().Value.equals("+") || peekToken().Value.equals("-")) {
-            consumeToken();
-            parseTerm();
-        }
-    }
-
-    private void parseTerm() throws ParseException {
-        parseFactor();
-        while (peekToken().Value.equals("*") || peekToken().Value.equals("/") || peekToken().Value.equals("%") || peekToken().Value.equals("**")) {
-            consumeToken();
-            parseFactor();
-        }
-    }
-
-    private void parseFactor() throws ParseException {
-        ItemTableSymbol t = peekToken();
-        if (t.Class.equals("NUMERO")) {
-            consumeToken();
-        } else if (t.Class.equals("IDENTIFY")) {
-            consumeToken();
-        } else if (t.Class.equals("STRING")) {
-            consumeToken();
-        } else if (t.Class.equals("CARACTERE")) {
-            consumeToken();
-        } else if (t.Class.equals("CONST")) { // "verdade" / "mentira"
-            consumeToken();
-        } else if (t.Value.equals("(")) {
-            consumeToken();
-            parseExpression();
-            if (!peekToken().Value.equals(")")) throw new ParseException("Esperava ')' na expressão na posição " + pos);
-            consumeToken();
+    private void parseType() throws ParseException {
+        if (isType()) {
+            pos++;
         } else {
-            throw new ParseException("Fator inválido: '" + t.Value + "' (classe=" + t.Class + ") na posição " + pos);
+            throw new ParseException("Tipo esperado (Inteiro, Logico, Caractere).");
         }
+    }
+
+    private void parseVarList() throws ParseException {
+        parseVarInit();
+        while (check(",")) {
+            eat(",");
+            parseVarInit();
+        }
+    }
+
+    private void parseVarInit() throws ParseException {
+        eat("IDENTIFY");
+        if (check("<-")) {
+            eat("<-");
+            parseExpr();
+        }
+    }
+
+    // ------------------------ STATEMENTS ------------------------
+
+    private void parseStatement() throws ParseException {
+
+        if (check("IDENTIFY")) {
+            parseAssignment();
+            eat("SYMBOL"); // ;
+            return;
+        }
+
+        if (check("COMMAND") && peek().Value.equals("Imprimir")) {
+            parsePrintStmt();
+            eat("SYMBOL"); // ;
+            return;
+        }
+
+        if (check("COMMAND") && peek().Value.equals("Se")) {
+            parseIfStmt();
+            return;
+        }
+
+        if (check("COMMAND") && peek().Value.equals("Enquanto")) {
+            parseWhileStmt();
+            return;
+        }
+
+        if (check("COMMAND") && peek().Value.equals("Para")) {
+            parseForStmt();
+            return;
+        }
+
+        if (check("SYMBOL") && peek().Value.equals("{")) {
+            parseBlock();
+            return;
+        }
+
+        throw new ParseException("Comando inválido iniciado em: " + peek().Class + " (" + peek().Value + ")");
+    }
+
+    private void parseAssignment() throws ParseException {
+        eat("IDENTIFY");
+        eat("<-");
+        parseExpr();
+    }
+
+    private void parsePrintStmt() throws ParseException {
+        eat("COMMAND"); // Imprimir
+        eat("(");
+        parseExpr();
+        eat(")");
+    }
+
+    private void parseIfStmt() throws ParseException {
+        eat("COMMAND"); // Se
+        parseExpr();
+        parseBlock();
+        if (check("COMMAND") && peek().Value.equals("Senao")) {
+            eat("COMMAND");
+            parseBlock();
+        }
+    }
+
+    private void parseWhileStmt() throws ParseException {
+        eat("COMMAND"); // Enquanto
+        parseExpr();
+        parseBlock();
+    }
+
+    private void parseForStmt() throws ParseException {
+        eat("COMMAND"); // Para
+        eat("IDENTIFY");
+        eat("COMMAND"); // em
+        eat("(");
+        parseExpr();
+        eat(",");
+        parseExpr();
+        eat(",");
+        parseExpr();
+        eat(")");
+        parseBlock();
+    }
+
+    private void parseBlock() throws ParseException {
+        eat("SYMBOL"); // {
+        while (!check("SYMBOL") || !peek().Value.equals("}")) {
+            parseTopItem();
+        }
+        eat("SYMBOL"); // }
+    }
+
+    // ------------------------ EXPRESSÕES ------------------------
+
+    private void parseExpr() throws ParseException {
+        parseOr();
+    }
+
+    private void parseOr() throws ParseException {
+        parseAnd();
+        while (check("LOGIC_OPERATOR") && peek().Value.equals("^")) {
+            eat("^");
+            parseAnd();
+        }
+    }
+
+    private void parseAnd() throws ParseException {
+        parseRel();
+        while (check("LOGIC_OPERATOR") && peek().Value.equals("&")) {
+            eat("&");
+            parseRel();
+        }
+    }
+
+    private void parseRel() throws ParseException {
+        parseAdd();
+        if (check("LOGIC_OPERATOR") &&
+            (peek().Value.equals("=") || peek().Value.equals("<>") ||
+             peek().Value.equals("<") || peek().Value.equals(">") ||
+             peek().Value.equals("<=") || peek().Value.equals(">="))) {
+            pos++;
+            parseAdd();
+        }
+    }
+
+    private void parseAdd() throws ParseException {
+        parseMul();
+        while (check("MATH_OPERATOR") && (peek().Value.equals("+") || peek().Value.equals("-"))) {
+            pos++;
+            parseMul();
+        }
+    }
+
+    private void parseMul() throws ParseException {
+        parseExpo();
+        while (check("MATH_OPERATOR") && (peek().Value.equals("*") || peek().Value.equals("/") || peek().Value.equals("%"))) {
+            pos++;
+            parseExpo();
+        }
+    }
+
+    private void parseExpo() throws ParseException {
+        parseUnary();
+        if (check("MATH_OPERATOR") && peek().Value.equals("**")) {
+            eat("**");
+            parseExpo(); // right-associative
+        }
+    }
+
+    private void parseUnary() throws ParseException {
+        if (check("MATH_OPERATOR") && (peek().Value.equals("+") || peek().Value.equals("-"))) {
+            pos++;
+            parseUnary();
+        } else {
+            parsePrimary();
+        }
+    }
+
+    private void parsePrimary() throws ParseException {
+        ItemTableSymbol t = peek();
+
+        if (t.Class.equals("NUMERO")) { pos++; return; }
+        if (t.Class.equals("IDENTIFY")) { pos++; return; }
+        if (t.Class.equals("STRING")) { pos++; return; }
+        if (t.Class.equals("CARACTERE")) { pos++; return; }
+        if (t.Class.equals("CONST")) { pos++; return; }
+
+        if (t.Class.equals("SYMBOL") && t.Value.equals("(")) {
+            eat("(");
+            parseExpr();
+            eat(")");
+            return;
+        }
+
+        throw new ParseException("Expressão primária inválida: " + t.Class + " (" + t.Value + ")");
     }
 }

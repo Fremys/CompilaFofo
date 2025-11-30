@@ -1,421 +1,266 @@
 package lexicalFinal;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
-
 import symbolTable.ItemTableSymbol;
 
 public class AnalyzerFinal {
 
-    private String[] number = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" };
-    private String[] letters = { "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q",
-            "r", "s", "t", "u", "v", "w", "x", "y", "z",
-            "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U",
-            "V", "W", "X", "Y", "Z" };
-    private String[] arithmeticOperators = { "+", "-", "*", "/", "%", "**" };
-    private String[] relationalOperators = { "<", "<=", ">", ">=", "==", "<>", "=", "&", "^" };
-    private String[] otherSymbols = { ";", "{", "}", "$", "$$", "\"", "(", ")", "," };
-    private String[] booleanValues = { "verdade", "mentira" };
-    private String[] command = { "Enquanto", "Se", "Senao", "Para", "Imprimir" };
-    private String[] types = { "Inteiro", "Logico", "Caractere" };
+    private final String src;
+    private int pos = 0;
+    private int line = 1;
+    private int col = 1;
 
-    private String[] specialStrings = { "\0", "\t", " ", "\n", "\r" };
-
-    public String[] indices = {
-            "+", "-", "/", "*", "%", "<", ">", "=", "^", "&", "$", "(", ")", ";", ",",
-            "\"", "{", "}",
-            "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u",
-            "v", "w", "x", "y", "z",
-            "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U",
-            "V", "W", "X", "Y", "Z", "\r", " ", "\t", "\n", "\'", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "\0" 
-    };
-
-    // Mapa dos indices da matriz de transição
-    private Map<String, Integer> mapIndex = new HashMap<>();
-
-    // Matriz de transição do automato
-    private String[][] matrixTransaction;
-
-    // Matriz
-    private ArrayList<ItemTableSymbol> tableSymbols = new ArrayList<ItemTableSymbol>();
-
-    // Definir tabela de símbolos
-    ItemTableSymbol item = new ItemTableSymbol();
-
-    // Dados para controle de leitura do analisador léxico
-    private int initPos = 0;
-    private int currentPos = 0;
+    private ArrayList<ItemTableSymbol> tableSymbols = new ArrayList<>();
 
     public AnalyzerFinal(String input) {
-        // Definir dados
-        int currentState = 0;
-        input += "\0\0";
+        this.src = input == null ? "" : input;
+        tokenizeAll();
+    }
 
-        mapIndex = createIndexCharacters(); // definir indices
-        matrixTransaction = createTableTransaction("TransactionFinal.csv", 77); // definir matriz de transição
+    // -------------------- Helpers --------------------
 
-        String c = "";
-        String lookAHead = "";
+    private char peek() {
+        return pos < src.length() ? src.charAt(pos) : '\0';
+    }
 
-        for (int i = 0; i < input.length() && !c.equals("\0"); i++) {
-            // resgatar char para analisar
-            c = getChar(input, currentPos);
-            lookAHead = getChar(input, currentPos + 1);
+    private char peekNext() {
+        return (pos + 1 < src.length()) ? src.charAt(pos + 1) : '\0';
+    }
 
-            // Ignorar espaços
-            if ((c.equals(" ") || c.equals("\r") || c.equals("\t") || c.equals("\n")) && currentState == 0) {
+    private char advance() {
+        char c = peek();
+        pos++;
+        if (c == '\n') {
+            line++;
+            col = 1;
+        } else {
+            col++;
+        }
+        return c;
+    }
 
-                // Ignorar enquanto for espaço
-                while ((c.equals(" ") || c.equals("\r") || c.equals("\t") || c.equals("\n")) && (!c.equals("\0"))) {
-                    c = String.valueOf(input.charAt(++currentPos));
-                    lookAHead = String.valueOf(input.charAt(currentPos + 1));
-                }
+    private boolean match(char expected) {
+        if (peek() == expected) {
+            advance();
+            return true;
+        }
+        return false;
+    }
 
-                initPos = currentPos;
+    private void addToken(String cls, String val) {
+        tableSymbols.add(new ItemTableSymbol(tableSymbols.size(), cls, val, 0));
+    }
+
+    // -------------------- Tokenização principal --------------------
+
+    private void tokenizeAll() {
+
+        while (true) {
+
+            skipWhitespaceAndComments();
+
+            char c = peek();
+            if (c == '\0')
+                break;
+
+            // símbolos simples
+            if (c == ';') { advance(); addToken("SYMBOL", ";"); continue; }
+            if (c == '{') { advance(); addToken("SYMBOL", "{"); continue; }
+            if (c == '}') { advance(); addToken("SYMBOL", "}"); continue; }
+            if (c == '(') { advance(); addToken("SYMBOL", "("); continue; }
+            if (c == ')') { advance(); addToken("SYMBOL", ")"); continue; }
+            if (c == ',') { advance(); addToken("SYMBOL", ","); continue; }
+
+            // STRING
+            if (c == '"') {
+                String s = readStringLiteral();
+                addToken("STRING", s);
+                continue;
             }
 
-            //if (!c.equals("\0")) {
-
-                // Executar automato
-                currentState = readElementTable(currentState, c);
-
-                switch (currentState) {
-                    case 0:
-                        initPos = ++currentPos;
-                        break;
-                    case 1:
-                        item = new ItemTableSymbol(tableSymbols.size(), "MATH_OPERATOR",
-                                input.substring(initPos, currentPos + 1), 0);
-                        tableSymbols.add(item);
-
-                        initPos = ++currentPos; // Passar para o próximo caractere
-                        currentState = 0;
-
-                        break;
-                    case 8:
-                        if (!Contains(lookAHead, letters)) {
-                            item = new ItemTableSymbol(tableSymbols.size(), "TYPE",
-                                    input.substring(initPos, currentPos + 1), 0);
-                            tableSymbols.add(item);
-                            initPos = ++currentPos;
-                            currentState = 0;
-                        } else
-                            currentPos++;
-
-                        break;
-                    case 15:
-                        if (!Contains(lookAHead, letters)) {
-                            item = new ItemTableSymbol(tableSymbols.size(), "COMMAND",
-                                    input.substring(initPos, currentPos + 1), 0);
-                            tableSymbols.add(item);
-                            initPos = ++currentPos;
-                            currentState = 0;                           
-                        } else
-                             currentPos++;
-                            break;
-                    case 21:
-                        if (!Contains(lookAHead, letters)) {
-                            item = new ItemTableSymbol(tableSymbols.size(), "TYPE",
-                                    input.substring(initPos, currentPos + 1), 0);
-                            tableSymbols.add(item);
-                            initPos = ++currentPos;
-                            currentState = 0;
-                        } else
-                            currentPos++;
-
-                        break;
-                    case 30:
-                        if (!Contains(lookAHead, letters)) {
-                            item = new ItemTableSymbol(tableSymbols.size(), "TYPE",
-                                    input.substring(initPos, currentPos + 1), 0);
-                            tableSymbols.add(item);
-                            initPos = ++currentPos;
-                            currentState = 0;
-                        } else
-                            currentPos++;
-
-                        break;
-                    case 38:
-                        if (!Contains(lookAHead, letters)) {
-                            item = new ItemTableSymbol(tableSymbols.size(), "COMMAND",
-                                    input.substring(initPos, currentPos + 1), 0);
-                            tableSymbols.add(item);
-                            initPos = ++currentPos;
-                            currentState = 0;
-                        } else
-                            currentPos++;
-
-                        break;
-                    case 40:
-                        if (lookAHead == "n") {
-                            currentPos++;
-                        } else if (!Contains(lookAHead, letters)) {
-                            item = new ItemTableSymbol(tableSymbols.size(), "COMMAND",
-                                    input.substring(initPos, currentPos + 1), 0);
-                            tableSymbols.add(item);
-                            initPos = ++currentPos;
-                            currentState = 0;
-                        } else
-                            currentPos++;
-
-                        break;
-                    case 43:
-                        if (!Contains(lookAHead, letters)) {
-                            item = new ItemTableSymbol(tableSymbols.size(), "COMMAND",
-                                    input.substring(initPos, currentPos + 1), 0);
-                            tableSymbols.add(item);
-                            initPos = ++currentPos;
-                            currentState = 0;
-                        } else
-                            currentPos++;
-
-                        break;
-                    case 53:
-                        if (!Contains(lookAHead, letters)) {
-                            item = new ItemTableSymbol(tableSymbols.size(), "CONST",
-                                    input.substring(initPos, currentPos + 1), 0);
-                            tableSymbols.add(item);
-                            initPos = ++currentPos;
-                            currentState = 0;
-                        } else
-                            currentPos++;
-
-                        break;
-                    case 60:
-                        if (!Contains(lookAHead, letters)) {
-                            item = new ItemTableSymbol(tableSymbols.size(), "CONST",
-                                    input.substring(initPos, currentPos + 1), 0);
-                            tableSymbols.add(item);
-                            initPos = ++currentPos;
-                            currentState = 0;
-                        } else
-                            currentPos++;
-
-                        break;
-                    case 61:
-                        item = new ItemTableSymbol(tableSymbols.size(), "LOGIC_OPERATOR",
-                                input.substring(initPos, currentPos + 1), 0);
-                        tableSymbols.add(item);
-                        initPos = ++currentPos;
-
-                        currentState = 0;
-
-                        break;
-                    case 62:
-                        item = new ItemTableSymbol(tableSymbols.size(), getChar(input, currentPos),
-                                getChar(input, currentPos), 0);
-                        tableSymbols.add(item);
-                        initPos = ++currentPos;
-
-                        currentState = 0;
-                        break;
-                    case 63:
-                        // verificar se o nome do identificador chegou ao fim
-                        if (!Contains(lookAHead, letters)) {
-                            item = new ItemTableSymbol(tableSymbols.size(), "IDENTIFY",
-                                    input.substring(initPos, currentPos + 1),
-                                    0);
-                            tableSymbols.add(item);
-                            initPos = ++currentPos;
-                            currentState = 0;
-                        } else
-                            currentPos++;
-
-                        break;
-                    case 64:
-                        if (  !lookAHead.equals("*") || getChar(input, currentPos-1).equals("*") && getChar(input, currentPos-2).equals("*") ) {
-                            item = new ItemTableSymbol(tableSymbols.size(), "MATH_OPERATOR",
-                                    input.substring(initPos, currentPos + 1), 0);
-                            tableSymbols.add(item);
-
-                            initPos = ++currentPos;
-                            currentState = 0;
-                        } else
-                            currentPos++;
-                        break;
-                    case 66:
-                        if (!(lookAHead.equals(">") || lookAHead.equals("="))   ) {
-                            item = new ItemTableSymbol(tableSymbols.size(), "LOGIC_OPERATOR",
-                                    input.substring(initPos, currentPos + 1), 0);
-                            tableSymbols.add(item);
-
-                            initPos = ++currentPos;
-                            currentState = 0;
-                        } else
-                            currentPos++;
-                        break;
-                    case 69:
-                        if (!lookAHead.equals("=")) {
-                            item = new ItemTableSymbol(tableSymbols.size(), "LOGIC_OPERATOR",
-                                    input.substring(initPos, currentPos + 1), 0);
-                            tableSymbols.add(item);
-
-                            initPos = ++currentPos;
-                            currentState = 0;
-                        } else
-                            currentPos++;
-
-                        break;
-                    case 70:
-                        if (!lookAHead.equals("=") || 
-                            (getChar(input, currentPos-1).equals("=")  && getChar(input, currentPos-2).equals("="))) {
-                            item = new ItemTableSymbol(tableSymbols.size(), input.substring(initPos, currentPos + 1),
-                                    input.substring(initPos, currentPos + 1), 0);
-                            tableSymbols.add(item);
-
-                            initPos = ++currentPos;
-                            currentState = 0;
-                        } else
-                            currentPos++;
-
-                        break;
-                    case 72:
-                            item = new ItemTableSymbol(tableSymbols.size(), "STRING",
-                            input.substring(initPos, currentPos + 1), 0);
-                            tableSymbols.add(item);
-                            
-                            initPos = ++currentPos;
-                            
-                            currentState = 0;
-                    break;
-                    case 73:
-                        if (!Contains(lookAHead, number)) {
-
-                            item = new ItemTableSymbol(tableSymbols.size(), "NUMERO",
-                            input.substring(initPos, currentPos + 1), 0);
-                            tableSymbols.add(item);
-                            
-                            initPos = ++currentPos;
-                            
-                            currentState = 0;
-                        }else
-                            currentPos++;
-                    break;
-                    case 76:
-                        item = new ItemTableSymbol(tableSymbols.size(), "CARACTERE",
-                                    input.substring(initPos, currentPos + 1), 0);
-                        tableSymbols.add(item);
-                        initPos = ++currentPos;
-
-                        currentState = 0;
-                    break;
-                    case -1:
-                        item = new ItemTableSymbol(tableSymbols.size(), "ERRO NA ANÁLISE LÉXICA",
-                                    "-1", 0);
-                        tableSymbols.add(item);
-                        i = input.length();
-                        currentState = 0;
-
-                        break;
-                    default:
-                        currentPos++;
-                        break;
-                }
-            //}
-        }
-    }
-
-    private String getChar(String text, int pos) {
-        String result = "";
-
-        result = String.valueOf(text.charAt(pos));
-
-        return result;
-    }
-
-    private Map<String, Integer> createIndexCharacters() {
-        // definir dados
-        final Map<String, Integer> indexes = new HashMap<>();
-
-        for (int i = 0; i < indices.length; i++) {
-            indexes.put(indices[i], i);
-        }
-
-        return indexes;
-    }
-
-    private String[][] createTableTransaction(String nameAqr, int pQtdStates) {
-        // Definir dados
-        int qtdStates = pQtdStates;
-        int qtdSymbols = indices.length;
-
-        return lerCSV("./TransactionTable/" + nameAqr, new String[qtdStates][qtdSymbols]);
-    }
-
-    public static String[][] lerCSV(String caminhoArquivo, String[][] matrix) {
-        // Definir dados
-        String[][] result = matrix;
-
-        try (BufferedReader br = new BufferedReader(new FileReader(caminhoArquivo))) {
-
-            String linha;
-
-            int i = 0;
-            while ((linha = br.readLine()) != null) {
-
-                String[] valores = linha.split(";");
-
-                matrix[i] = valores;
-
-                i++;
+            // CHAR literal
+            if (c == '\'') {
+                String ch = readCharLiteral();
+                addToken("CARACTERE", ch);
+                continue;
             }
 
-        } catch (IOException e) {
-            System.err.println("Erro ao ler o arquivo CSV: " + e.getMessage());
+            // '<-' , '<>' , '<=' , '<'
+            if (c == '<') {
+                advance();
+                if (match('-')) { addToken("SYMBOL", "<-"); continue; }
+                if (match('>')) { addToken("LOGIC_OPERATOR", "<>"); continue; }
+                if (match('=')) { addToken("LOGIC_OPERATOR", "<="); continue; }
+                addToken("LOGIC_OPERATOR", "<");
+                continue;
+            }
+
+            // '>' , '>='
+            if (c == '>') {
+                advance();
+                if (match('=')) { addToken("LOGIC_OPERATOR", ">="); continue; }
+                addToken("LOGIC_OPERATOR", ">");
+                continue;
+            }
+
+            // '='
+            if (c == '=') {
+                advance();
+                addToken("LOGIC_OPERATOR", "=");
+                continue;
+            }
+
+            // operadores aritméticos
+            if (c == '+') { advance(); addToken("MATH_OPERATOR", "+"); continue; }
+            if (c == '-') { advance(); addToken("MATH_OPERATOR", "-"); continue; }
+            if (c == '/') { advance(); addToken("MATH_OPERATOR", "/"); continue; }
+            if (c == '%') { advance(); addToken("MATH_OPERATOR", "%"); continue; }
+
+            // '*' ou '**'
+            if (c == '*') {
+                advance();
+                if (match('*')) { addToken("MATH_OPERATOR", "**"); continue; }
+                addToken("MATH_OPERATOR", "*");
+                continue;
+            }
+
+            // operadores lógicos
+            if (c == '&') { advance(); addToken("LOGIC_OPERATOR", "&"); continue; }
+            if (c == '^') { advance(); addToken("LOGIC_OPERATOR", "^"); continue; }
+
+            // números
+            if (Character.isDigit(c)) {
+                addToken("NUMERO", readNumber());
+                continue;
+            }
+
+            // IDENTIFICADORES e PALAVRAS-CHAVE
+            if (Character.isLetter(c)) {
+                String word = readWord();
+                String low = word.toLowerCase();
+
+                // TYPE
+                if (low.equals("inteiro")) { addToken("TYPE", "Inteiro"); continue; }
+                if (low.equals("logico")) { addToken("TYPE", "Logico"); continue; }
+                if (low.equals("caractere")) { addToken("TYPE", "Caractere"); continue; }
+
+                // COMMAND
+                if (low.equals("enquanto")) { addToken("COMMAND", "Enquanto"); continue; }
+                if (low.equals("se")) { addToken("COMMAND", "Se"); continue; }
+                if (low.equals("senao") || low.equals("senão")) { addToken("COMMAND", "Senao"); continue; }
+                if (low.equals("para")) { addToken("COMMAND", "Para"); continue; }
+                if (low.equals("imprimir")) { addToken("COMMAND", "Imprimir"); continue; }
+                if (low.equals("em")) { addToken("COMMAND", "em"); continue; }
+
+                // BOOLEANOS
+                if (low.equals("verdade")) { addToken("CONST", "Verdade"); continue; }
+                if (low.equals("mentira")) { addToken("CONST", "Mentira"); continue; }
+
+                // IDENTIFY
+                addToken("IDENTIFY", low);
+                continue;
+            }
+
+            // caractere inválido
+            addToken("ERRO", Character.toString(c));
+            advance();
         }
 
-        return result;
+        addToken("EOF", "EOF");
     }
 
-    public int readElementTable(int state, String symbol) {
-        // Definir dados
-        int result = -1;
+    // -------------------- Leitura de componentes --------------------
 
-        int i = state;
-        int j = mapIndex.get(symbol);
-
-        result = Integer.parseInt(matrixTransaction[i][j]);
-
-        return result;
-    }
-
-    public boolean Contains(String character, String arrayString[]) {
-        // Definir dados
-        boolean resultado = false;
-
-        // Procurar caractere no array
-
-        for (int i = 0; !resultado && i < arrayString.length; i++) {
-            resultado = resultado || (character.equals(arrayString[i]));
+    private String readWord() {
+        StringBuilder sb = new StringBuilder();
+        while (Character.isLetter(peek())) {
+            sb.append(advance());
         }
-
-        return resultado;
+        return sb.toString();
     }
 
-    public void printClassTokens(){
-        for(int i=0; i<tableSymbols.size(); i++){
-            ItemTableSymbol item = tableSymbols.get(i);
-            System.out.println(item.Class);
+    private String readNumber() {
+        StringBuilder sb = new StringBuilder();
+        while (Character.isDigit(peek())) {
+            sb.append(advance());
         }
-
+        return sb.toString();
     }
 
-    public void printValueTokens(){
-        for(int i=0; i<tableSymbols.size(); i++){
-            ItemTableSymbol item = tableSymbols.get(i);
-            System.out.println(item.Value);
+    private String readStringLiteral() {
+        advance(); // abre "
+        StringBuilder sb = new StringBuilder();
+        while (peek() != '"' && peek() != '\0') {
+            sb.append(advance());
         }
+        advance(); // fecha "
+        return sb.toString();
+    }
 
-    }    
+    private String readCharLiteral() {
+        advance(); // abre '
+        char c = advance();
+        advance(); // fecha '
+        return Character.toString(c);
+    }
 
-    // Obtendo lista de tokens
+    // comentários e espaços
+    private void skipWhitespaceAndComments() {
+
+        while (true) {
+            char c = peek();
+
+            // espaços
+            if (Character.isWhitespace(c)) {
+                advance();
+                continue;
+            }
+
+            // $$ ... $$
+            if (c == '$' && peekNext() == '$') {
+                advance(); advance(); // abre $$
+                while (!(peek() == '$' && peekNext() == '$') && peek() != '\0')
+                    advance();
+                if (peek() != '\0') { advance(); advance(); } // fecha $$
+                continue;
+            }
+
+            // $ ... \n
+            if (c == '$') {
+                advance();
+                while (peek() != '\n' && peek() != '\0')
+                    advance();
+                continue;
+            }
+
+            break;
+        }
+    }
+
+    // -------------------- Saída --------------------
+
     public ArrayList<ItemTableSymbol> getTableSymbols() {
-        return this.tableSymbols;
+        return tableSymbols;
     }
 
+    public void printValueTokens() {
+        for (ItemTableSymbol it : tableSymbols)
+            System.out.println(it.Value);
+    }
+
+    public void printClassTokens() {
+        for (ItemTableSymbol it : tableSymbols)
+            System.out.println(it.Class);
+    }
+
+    // Verifica se algum token gerado é de classe "ERRO"
+public boolean hasLexicalError() {
+    for (ItemTableSymbol t : tableSymbols) {
+        if ("ERRO".equals(t.Class)) {
+            return true;
+        }
+    }
+    return false;
+}
 
 }
