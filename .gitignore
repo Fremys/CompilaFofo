@@ -25,3 +25,12 @@ hs_err_pid*
 replay_pid*
 
 /TransactionTable/Transaction.csv
+
+# LaTeX build artifacts (Protecao adicionada)
+*.aux
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.pdf
