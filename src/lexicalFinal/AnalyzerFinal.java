@@ -115,7 +115,20 @@ tokenizeAll() {
 
             // operadores aritméticos
             if (c == '+') { advance(); addToken("MATH_OPERATOR", "+"); continue; }
-            if (c == '-') { advance(); addToken("MATH_OPERATOR", "-"); continue; }
+            if (c == '-') { 
+                advance();
+
+                char cNext = peek();
+                if(Character.isDigit(cNext)) {
+                    String number = readNumber();
+                    addToken("NUMERO", "-" + number);
+                    continue;
+
+                }
+                
+                addToken("MATH_OPERATOR", "-");
+                continue;
+             }
             if (c == '/') { advance(); addToken("MATH_OPERATOR", "/"); continue; }
             if (c == '%') { advance(); addToken("MATH_OPERATOR", "%"); continue; }
 
