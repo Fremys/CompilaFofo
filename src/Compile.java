@@ -1,9 +1,10 @@
 import java.util.*;
 
-import lexicalFinal.AnalyzerFinal;
 import auxStructures.*;
-import syntatic.ParseException;
-import syntatic.Parser;
+// import Backup.Parser;
+import lexicalFinal.AnalyzerFinal;
+// import syntatic.ParseException;
+import parser.*;
 
 import java.io.FileReader;
 import java.nio.file.Files;
@@ -33,32 +34,34 @@ public class Compile{
 
     // definir dados
     String arquivoEntrada = ""; 
-    ArrayList<ItemTableSymbol> tabelaSimbolos = new ArrayList<ItemTableSymbol>();
     ArrayList<Token> tokens = new ArrayList<Token>();
 
     // ler programa
     arquivoEntrada = readProgram("program1.cf");
 
+
     // Analyzer lexer = new Analyzer(arquivoEntrada);
     AnalyzerFinal lexer = new AnalyzerFinal(arquivoEntrada);
-
-    tabelaSimbolos = lexer.getTableSymbols(); // resgatar a tabela de simbolos
-    tokens = lexer.getTokens(); // resgatar os tokens gerados
-
-    // adicionar sentinel EOF (caso não tenha)
-    tokens.add(new Token("EOF", "EOF"));
-
-    // lexer.printTokens("class");
-
-    // criar parser
-    Parser parser = new Parser(tokens);
     try {
-        parser.parseProgram();
-        System.out.println("Analise sintática concluída: sem erros.");
-    } catch (ParseException e) {
-        System.out.println("Erro sintático: " + e.getMessage());
+      lexer.LexicalAnalyzer(arquivoEntrada); // executar análise léxica
+      tokens = lexer.getTokens(); // resgatar os tokens gerados
+      tokens.add(new Token("EOF", "EOF")); // adicionar sentinel EOF 
+    }
+    catch (Exception e) {
+      System.out.println("Erro léxico: " + e.getMessage());
     }
 
-    // System.out.println("=== FIM ===");
+    if(tokens.size() > 0 && !tokens.get(0).ClassToken.equals("ERROR")) {
+      // criar parser
+      Parser parser = new Parser(tokens);
+      try {
+        parser.parseProgram();
+        System.out.println("Analise sintática concluída: sem erros.");
+      } catch (ParseException e) {
+        System.out.println("Erro sintático: " + e.getMessage());
+      }
+      
+    } 
+    System.out.println("\n=== FIM ===");
   }
 }

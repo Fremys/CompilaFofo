@@ -1,3 +1,14 @@
-Para i em (1+1, 3+5, 1+2){
-    Inteiro teste <- 5;
+$ Verificar se o numero e primo
+Inteiro x <- 20, d <- x - 1;
+Enquanto x > 1 & x % d <> 0
+{
+x <- x - 1;
+}
+Se x = 1
+{
+Imprimir(x + " e primo!\n");
+}
+Senão
+{
+Imprimir(x + "nao e primo!\n");
 }

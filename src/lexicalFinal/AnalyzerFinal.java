@@ -31,7 +31,8 @@ public class AnalyzerFinal {
             "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u",
             "v", "w", "x", "y", "z",
             "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U",
-            "V", "W", "X", "Y", "Z", "\r", " ", "\t", "\n", "\'", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "\0" 
+            "V", "W", "X", "Y", "Z", "\r", " ", "\t", "\n", "\'", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "\0", "\\", "[", "]",
+            "!", "?", "|", ":", "@", "#", "_", "~", "`", "ç", "ã", "á", "é", "í", "ó", "ú", "â", "ê", "ô", "õ"
     };
 
     // Mapa dos indices da matriz de transição
@@ -53,12 +54,17 @@ public class AnalyzerFinal {
     private int currentPos = 0;
 
     public AnalyzerFinal(String input) {
+        mapIndex = createIndexCharacters(); // definir indices
+        matrixTransaction = createTableTransaction("TransactionFinal2.csv", 83); // definir matriz de transição
+    }
+
+    public void LexicalAnalyzer(String input) throws LexicalException {
         // Definir dados
         int currentState = 0;
         input += "\0\0";
 
-        mapIndex = createIndexCharacters(); // definir indices
-        matrixTransaction = createTableTransaction("TransactionFinal2.csv", 83); // definir matriz de transição
+        // mapIndex = createIndexCharacters(); // definir indices
+        // matrixTransaction = createTableTransaction("TransactionFinal2.csv", 83); // definir matriz de transição
 
         String c = "";
         String lookAHead = "";
@@ -78,6 +84,10 @@ public class AnalyzerFinal {
                 }
 
                 initPos = currentPos;
+            }
+
+            if(i==115){
+                String t = "$";
             }
 
 
@@ -267,10 +277,10 @@ public class AnalyzerFinal {
                 case 62:
                     // item = new ItemTableSymbol(tableSymbols.size(), getChar(input, currentPos),
                     //         getChar(input, currentPos), 0);
-                    // tableSymbols.add(item);
+                    // tableSymbols.add(item);  
 
                     // salvar token
-                    token = new Token(getChar(input, currentPos), getChar(input, currentPos));  
+                    token = new Token("SYMBOL", getChar(input, currentPos));  
                     tokens.add(token);
 
                     initPos = ++currentPos;
@@ -414,7 +424,7 @@ public class AnalyzerFinal {
                     // tableSymbols.add(item);
 
                     // salvar token
-                    token = new Token(input.substring(initPos, currentPos + 1), input.substring(initPos, currentPos + 1));
+                    token = new Token("COMMAND", input.substring(initPos, currentPos + 1));
                     tokens.add(token);
 
                     initPos = ++currentPos;
@@ -427,15 +437,15 @@ public class AnalyzerFinal {
                     // tableSymbols.add(item);
                     
                     // salvar token
-                    token = new Token("ERRO NA ANÁLISE LÉXICA", "-1");;
-                    tokens.add(token);  
 
+                    token = new Token("ERROR", "-1");;
+                    tokens.add(token);  
+                    
                     i = input.length();
                     currentState = 0;
-
-                    break;
-                default:
-                    currentPos++;
+                    throw new LexicalException("Erro na análise léxica no caractere: " + "\'" + c  + "\'" +" na posição " + currentPos);
+                    default:
+                        currentPos++;
                     break;
             }
         }
