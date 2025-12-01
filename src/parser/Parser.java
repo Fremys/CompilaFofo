@@ -162,6 +162,11 @@ public class Parser {
 
     private void parseForStmt() throws ParseException {
         eat("COMMAND"); // Para
+
+        // tipo opcional
+        if (check("TYPE")) 
+            eat("TYPE");
+        
         eat("IDENTIFY");
         eat("COMMAND"); // em
         eat("(");

@@ -1,6 +1,6 @@
 $ Somatorio de 1 ate n
 Inteiro n <- 100, soma <- 0;
-Para i em (n, 1, -1) $ De [1,n] incrementando em 1
+Para Inteiro i em (n, 1, -1) $ De [1,n] incrementando em 1
 {
 soma <- soma + i;
 }

@@ -42,11 +42,11 @@ public class AnalyzerFinal {
     private String[][] matrixTransaction;
 
     // Matriz
-    private ArrayList<ItemTableSymbol> tableSymbols = new ArrayList<ItemTableSymbol>();
+    // private ArrayList<ItemTableSymbol> tableSymbols = new ArrayList<ItemTableSymbol>();
     private ArrayList<Token> tokens = new ArrayList<Token>(); 
 
     // Definir tabela de símbolos
-    ItemTableSymbol item = new ItemTableSymbol();
+    // ItemTableSymbol item = new ItemTableSymbol();
     Token token = new Token();
 
     // Dados para controle de leitura do analisador léxico
@@ -286,11 +286,11 @@ public class AnalyzerFinal {
                     if (!Contains(lookAHead, letters)) {
 
                         // Salvar identificador na tabela de símbolos
-                        item = new ItemTableSymbol(tableSymbols.size(), "IDENTIFY",
-                                input.substring(initPos, currentPos + 1),
-                                0);
+                        // item = new ItemTableSymbol(tableSymbols.size(), "IDENTIFY",
+                        //         input.substring(initPos, currentPos + 1),
+                        //         0);
 
-                        tableSymbols = item.AddList(tableSymbols); // adicionar identificador na tabela de símbolos
+                        // tableSymbols = item.AddList(tableSymbols); // adicionar identificador na tabela de símbolos
 
                         // salvar token
                         token = new Token("IDENTIFY", input.substring(initPos, currentPos + 1));
@@ -559,9 +559,9 @@ public class AnalyzerFinal {
 
     }
 
-    public ArrayList<ItemTableSymbol> getTableSymbols(){
-        return tableSymbols;
-    }
+    // public ArrayList<ItemTableSymbol> getTableSymbols(){
+    //     return tableSymbols;
+    // }
 
     public ArrayList<Token> getTokens(){
         return tokens;
