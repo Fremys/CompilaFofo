@@ -37,7 +37,7 @@ public class Compile{
     ArrayList<Token> tokens = new ArrayList<Token>();
 
     // ler programa
-    arquivoEntrada = readProgram("program1.cf");
+    arquivoEntrada = readProgram("program0.cf");
 
 
     // Analyzer lexer = new Analyzer(arquivoEntrada);

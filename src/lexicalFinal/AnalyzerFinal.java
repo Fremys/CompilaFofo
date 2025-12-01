@@ -55,7 +55,7 @@ public class AnalyzerFinal {
 
     public AnalyzerFinal(String input) {
         mapIndex = createIndexCharacters(); // definir indices
-        matrixTransaction = createTableTransaction("TransactionFinal2.csv", 83); // definir matriz de transição
+        matrixTransaction = createTableTransaction("TransactionFinal2.csv", 84); // definir matriz de transição
     }
 
     public void LexicalAnalyzer(String input) throws LexicalException {
@@ -85,11 +85,6 @@ public class AnalyzerFinal {
 
                 initPos = currentPos;
             }
-
-            if(i==115){
-                String t = "$";
-            }
-
 
             // Executar automato
             currentState = readElementTable(currentState, c);
@@ -430,6 +425,18 @@ public class AnalyzerFinal {
                     initPos = ++currentPos;
                     currentState = 0;
                     
+                    break;
+                case 83:
+                    if (!(Contains(lookAHead, number))) {
+
+                        token = new Token("MATH_OPERATOR", input.substring(initPos, currentPos + 1));
+                        tokens.add(token);
+                        
+                        initPos = ++currentPos; // Passar para o próximo caractere
+                        currentState = 0;
+                    }else
+                        currentPos++;
+
                     break;
                 case -1:
                     // item = new ItemTableSymbol(tableSymbols.size(), "ERRO NA ANÁLISE LÉXICA",

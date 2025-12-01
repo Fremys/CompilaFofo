@@ -8,7 +8,7 @@ Se x = 1
 {
 Imprimir(x + " e primo!\n");
 }
-Senão
+Senao
 {
 Imprimir(x + "nao e primo!\n");
 }
