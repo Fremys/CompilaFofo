@@ -1,1 +1,8 @@
-a <- 10;
+$ Somatorio de 1 ate n
+ Inteiro n <- 100, soma <- 0;
+ Inteiro i;
+ Para i em (n, 1, -1) $ De [1,n] incrementando em 1
+ {
+  soma <- soma + i;
+ }
+ Imprimir ("A soma de 1 ate " + n + " e igual a " + soma + "\n");

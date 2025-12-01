@@ -1,6 +1,7 @@
-package symbolTable;
+package Parser;
 
 import java.util.ArrayList;
+import symbolTable.ItemTableSymbol;
 
 public class Parser {
 
@@ -160,14 +161,22 @@ public class Parser {
 
     private void parseForStmt() throws ParseException {
         eat("COMMAND"); // Para
+
+        // Tipo opcional
+        if (check("TYPE")) {
+            eat("TYPE"); // consome Inteiro, Logico ou Caractere
+        }
+
+        // Variável do loop
         eat("IDENTIFY");
+
         eat("COMMAND"); // em
         eat("(");
-        parseExpr();
+        parseExpr(); // limite inicial
         eat(",");
-        parseExpr();
+        parseExpr(); // limite final
         eat(",");
-        parseExpr();
+        parseExpr(); // passo
         eat(")");
         parseBlock();
     }
@@ -175,6 +184,7 @@ public class Parser {
     private void parseBlock() throws ParseException {
         eat("SYMBOL"); // {
         while (!check("SYMBOL") || !peek().Value.equals("}")) {
+            if (check("EOF")) throw new ParseException("Fim inesperado do arquivo no bloco.");
             parseTopItem();
         }
         eat("SYMBOL"); // }

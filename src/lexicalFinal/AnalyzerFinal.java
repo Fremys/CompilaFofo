@@ -53,7 +53,10 @@ public class AnalyzerFinal {
 
     // -------------------- Tokenização principal --------------------
 
-    private void tokenizeAll() {
+    private void 
+    
+    
+tokenizeAll() {
 
         while (true) {
 
@@ -153,11 +156,11 @@ public class AnalyzerFinal {
                 if (low.equals("em")) { addToken("COMMAND", "em"); continue; }
 
                 // BOOLEANOS
-                if (low.equals("verdade")) { addToken("CONST", "Verdade"); continue; }
-                if (low.equals("mentira")) { addToken("CONST", "Mentira"); continue; }
+                if (low.equals("verdade")) { addToken("CONST", "verdadeiro"); continue; }
+                if (low.equals("mentira")) { addToken("CONST", "falso"); continue; }
 
-                // IDENTIFY
-                addToken("IDENTIFY", low);
+                // IDENTIFY (preserva o case original)
+                addToken("IDENTIFY", word);
                 continue;
             }
 
@@ -180,12 +183,20 @@ public class AnalyzerFinal {
     }
 
     private String readNumber() {
-        StringBuilder sb = new StringBuilder();
-        while (Character.isDigit(peek())) {
-            sb.append(advance());
-        }
-        return sb.toString();
+    StringBuilder sb = new StringBuilder();
+
+    // captura sinal negativo se estiver antes de um dígito
+    if (peek() == '-' && Character.isDigit(peekNext())) {
+        sb.append(advance()); // adiciona o '-'
     }
+
+    while (Character.isDigit(peek())) {
+        sb.append(advance());
+    }
+
+    return sb.toString();
+}
+
 
     private String readStringLiteral() {
         advance(); // abre "
