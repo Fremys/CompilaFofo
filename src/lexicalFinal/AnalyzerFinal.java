@@ -172,8 +172,8 @@ tokenizeAll() {
                 if (low.equals("verdade")) { addToken("CONST", "verdadeiro"); continue; }
                 if (low.equals("mentira")) { addToken("CONST", "falso"); continue; }
 
-                // IDENTIFY (preserva o case original)
-                addToken("IDENTIFY", word);
+                // IDENTIFIER (preserva o case original)
+                addToken("IDENTIFIER", word);
                 continue;
             }
 

@@ -31,9 +31,16 @@ public class Parser {
         return t;
     }
 
-    private boolean check(String className) {
+    // pega o token atual e avança (sem checar)
+    private ItemTableSymbol eatAny() {
         ItemTableSymbol t = peek();
-        return t.Class.equals(className) || t.Value.equals(className);
+        pos++;
+        return t;
+    }
+
+    private boolean check(String classOrValue) {
+        ItemTableSymbol t = peek();
+        return t.Class.equals(classOrValue) || t.Value.equals(classOrValue);
     }
 
     // ------------------------ PROGRAM ------------------------
@@ -61,6 +68,7 @@ public class Parser {
 
     // ------------------------ DECLARATION ------------------------
 
+    // DECLARATION -> TYPE VAR_LIST ';'
     private void parseDeclaration() throws ParseException {
         parseType();
         parseVarList();
@@ -69,22 +77,24 @@ public class Parser {
 
     private void parseType() throws ParseException {
         if (isType()) {
-            pos++;
+            eat("TYPE"); // consome tipo
         } else {
             throw new ParseException("Tipo esperado (Inteiro, Logico, Caractere).");
         }
     }
 
+    // VAR_LIST -> VAR_INIT (',' VAR_INIT)*
     private void parseVarList() throws ParseException {
         parseVarInit();
         while (check(",")) {
-            eat(",");
+            eat(","); // ,
             parseVarInit();
         }
     }
 
+    // VAR_INIT -> IDENTIFIER ( '<-' EXPR )?
     private void parseVarInit() throws ParseException {
-        eat("IDENTIFY");
+        eat("IDENTIFIER");
         if (check("<-")) {
             eat("<-");
             parseExpr();
@@ -95,7 +105,7 @@ public class Parser {
 
     private void parseStatement() throws ParseException {
 
-        if (check("IDENTIFY")) {
+        if (check("IDENTIFIER")) {
             parseAssignment();
             eat("SYMBOL"); // ;
             return;
@@ -130,12 +140,14 @@ public class Parser {
         throw new ParseException("Comando inválido iniciado em: " + peek().Class + " (" + peek().Value + ")");
     }
 
+    // ASSIGNMENT -> IDENTIFIER '<-' EXPR
     private void parseAssignment() throws ParseException {
-        eat("IDENTIFY");
+        eat("IDENTIFIER");
         eat("<-");
         parseExpr();
     }
 
+    // PRINT_STMT -> 'Imprimir' '(' EXPR ')'
     private void parsePrintStmt() throws ParseException {
         eat("COMMAND"); // Imprimir
         eat("(");
@@ -143,6 +155,7 @@ public class Parser {
         eat(")");
     }
 
+    // IF_STMT -> 'Se' EXPR BLOCK ( 'Senao' BLOCK )?
     private void parseIfStmt() throws ParseException {
         eat("COMMAND"); // Se
         parseExpr();
@@ -153,48 +166,51 @@ public class Parser {
         }
     }
 
+    // WHILE_STMT -> 'Enquanto' EXPR BLOCK
     private void parseWhileStmt() throws ParseException {
         eat("COMMAND"); // Enquanto
         parseExpr();
         parseBlock();
     }
 
+    /* FOR_STMT -> 'Para' (TYPE)? IDENTIFIER 'em' '(' EXPR ',' EXPR ',' EXPR ')' BLOCK
+       Note: lexer emits 'em' as COMMAND with value "em" */
     private void parseForStmt() throws ParseException {
         eat("COMMAND"); // Para
 
-        // Tipo opcional
+        // tipo opcional
         if (check("TYPE")) {
-            eat("TYPE"); // consome Inteiro, Logico ou Caractere
+            eat("TYPE");
         }
 
-        // Variável do loop
-        eat("IDENTIFY");
+        // variável do loop
+        eat("IDENTIFIER");
 
+        // 'em' (comando)
         eat("COMMAND"); // em
         eat("(");
-        parseExpr(); // limite inicial
-        eat(",");
-        parseExpr(); // limite final
-        eat(",");
+        parseExpr(); // início
+        eat(",");    // ,
+        parseExpr(); // fim
+        eat(",");    // ,
         parseExpr(); // passo
         eat(")");
         parseBlock();
     }
 
+    // BLOCK -> '{' (TOP_ITEM)* '}'
     private void parseBlock() throws ParseException {
         eat("SYMBOL"); // {
         while (!check("SYMBOL") || !peek().Value.equals("}")) {
-            if (check("EOF")) throw new ParseException("Fim inesperado do arquivo no bloco.");
+            if (check("EOF")) throw new ParseException("Fim inesperado do arquivo dentro de bloco.");
             parseTopItem();
         }
         eat("SYMBOL"); // }
     }
 
-    // ------------------------ EXPRESSÕES ------------------------
+    // ------------------------ EXPRESSÕES (precedência) ------------------------
 
-    private void parseExpr() throws ParseException {
-        parseOr();
-    }
+    private void parseExpr() throws ParseException { parseOr(); }
 
     private void parseOr() throws ParseException {
         parseAnd();
@@ -218,7 +234,8 @@ public class Parser {
             (peek().Value.equals("=") || peek().Value.equals("<>") ||
              peek().Value.equals("<") || peek().Value.equals(">") ||
              peek().Value.equals("<=") || peek().Value.equals(">="))) {
-            pos++;
+            // operador relacional
+            eatAny(); // consume operator (LOGIC_OPERATOR)
             parseAdd();
         }
     }
@@ -226,7 +243,7 @@ public class Parser {
     private void parseAdd() throws ParseException {
         parseMul();
         while (check("MATH_OPERATOR") && (peek().Value.equals("+") || peek().Value.equals("-"))) {
-            pos++;
+            eatAny(); // + or -
             parseMul();
         }
     }
@@ -234,7 +251,7 @@ public class Parser {
     private void parseMul() throws ParseException {
         parseExpo();
         while (check("MATH_OPERATOR") && (peek().Value.equals("*") || peek().Value.equals("/") || peek().Value.equals("%"))) {
-            pos++;
+            eatAny();
             parseExpo();
         }
     }
@@ -249,7 +266,7 @@ public class Parser {
 
     private void parseUnary() throws ParseException {
         if (check("MATH_OPERATOR") && (peek().Value.equals("+") || peek().Value.equals("-"))) {
-            pos++;
+            eatAny();
             parseUnary();
         } else {
             parsePrimary();
@@ -259,11 +276,11 @@ public class Parser {
     private void parsePrimary() throws ParseException {
         ItemTableSymbol t = peek();
 
-        if (t.Class.equals("NUMERO")) { pos++; return; }
-        if (t.Class.equals("IDENTIFY")) { pos++; return; }
-        if (t.Class.equals("STRING")) { pos++; return; }
-        if (t.Class.equals("CARACTERE")) { pos++; return; }
-        if (t.Class.equals("CONST")) { pos++; return; }
+        if (t.Class.equals("NUMERO")) { eatAny(); return; }
+        if (t.Class.equals("IDENTIFIER")) { eatAny(); return; }
+        if (t.Class.equals("STRING")) { eatAny(); return; }
+        if (t.Class.equals("CARACTERE")) { eatAny(); return; }
+        if (t.Class.equals("CONST")) { eatAny(); return; }
 
         if (t.Class.equals("SYMBOL") && t.Value.equals("(")) {
             eat("(");

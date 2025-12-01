@@ -1,19 +1,32 @@
 package SemanticAnalyzer;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.Map;
+
 import symbolTable.ItemTableSymbol;
 
+/**
+ * Semantic analyzer:
+ * - pilha de escopos (Deque<Map<String,String>>) para suportar escopos (for com declaração local, blocos)
+ * - nomes de variáveis tratados case-insensitively (armazenados em lower-case)
+ * - inferência de tipo nas expressões (retorna "Inteiro"|"Logico"|"Caractere")
+ * - compatibilidade: aritméticos -> Inteiro; %, /, * etc -> Inteiro; relational -> Logico; &,^ -> Logico
+ * - operador + permite concatenação: se qualquer lado for Caractere => Caractere; se ambos Inteiro => Inteiro.
+ */
 public class SemanticAnalyzer {
 
     private final ArrayList<ItemTableSymbol> tokens;
     private int pos = 0;
 
-    // Tabela de símbolos com tipos das variáveis
-    private final HashMap<String, String> symbolTable = new HashMap<>();
+    // pilha de escopos: cada mapa: nome(lowercase) -> tipo ("Inteiro","Logico","Caractere")
+    private final Deque<Map<String, String>> scopes = new ArrayDeque<>();
 
     public SemanticAnalyzer(ArrayList<ItemTableSymbol> tokens) {
         this.tokens = tokens;
+        scopes.push(new HashMap<>()); // escopo global
     }
 
     private ItemTableSymbol peek() {
@@ -24,6 +37,23 @@ public class SemanticAnalyzer {
         ItemTableSymbol t = peek();
         pos++;
         return t;
+    }
+
+    private boolean accept(String clsOrVal) {
+        ItemTableSymbol t = peek();
+        if (t.Class.equals(clsOrVal) || t.Value.equals(clsOrVal)) {
+            pos++;
+            return true;
+        }
+        return false;
+    }
+
+    private void expect(String clsOrVal) throws SemanticException {
+        ItemTableSymbol t = peek();
+        if (!t.Class.equals(clsOrVal) && !t.Value.equals(clsOrVal)) {
+            throw new SemanticException("Esperado " + clsOrVal + " mas encontrado: " + t.Class + " (" + t.Value + ")");
+        }
+        pos++;
     }
 
     public void analyze() throws SemanticException {
@@ -41,210 +71,355 @@ public class SemanticAnalyzer {
         }
     }
 
+    // DECLARATION: TYPE VAR_LIST ';'
     private void parseDeclaration() throws SemanticException {
-        String type = eat().Value.toString(); // Tipo
-        parseVarList(type);
-        if (!peek().Value.equals(";"))
-            throw new SemanticException("Esperado ';' após declaração");
-        eat(); // ;
+        String tipo = eat().Value.toString(); // "Inteiro"/"Logico"/"Caractere"
+        parseVarList(tipo);
+        expect("SYMBOL"); // ;
     }
 
-    private void parseVarList(String type) throws SemanticException {
-        parseVarInit(type);
-        while (peek().Value.equals(",")) {
+    private void parseVarList(String tipo) throws SemanticException {
+        parseVarInit(tipo);
+        while (checkValue(",")) {
             eat(); // ,
-            parseVarInit(type);
+            parseVarInit(tipo);
         }
     }
 
-    private void parseVarInit(String type) throws SemanticException {
-        ItemTableSymbol var = eat(); // IDENTIFY
-        if (symbolTable.containsKey(var.Value.toString()))
-            throw new SemanticException("Variável já declarada: " + var.Value);
-        symbolTable.put(var.Value.toString(), type);
-
-        if (peek().Value.equals("<-")) {
+    private void parseVarInit(String tipo) throws SemanticException {
+        ItemTableSymbol id = eat(); // IDENTIFIER
+        if (!id.Class.equals("IDENTIFIER")) throw new SemanticException("Esperado identificador na declaração");
+        String name = id.Value.toString().toLowerCase();
+        if (currentScopeContains(name)) throw new SemanticException("Variável já declarada neste escopo: " + id.Value);
+        // registra sem valor inicial (null) se não houver <-, ou com verificação se houver
+        if (checkValue("<-")) {
             eat(); // <-
-            ItemTableSymbol expr = parseExpr();
-            checkTypeCompatibility(type, expr);
+            String exprType = parseExpr();
+            checkTypeCompatibility(tipo, exprType);
+            // registra a variável com o tipo declarado
+            scopes.peek().put(name, tipo);
+        } else {
+            // só registra o tipo
+            scopes.peek().put(name, tipo);
         }
     }
 
+    // STATEMENTS
     private void parseStatement() throws SemanticException {
         ItemTableSymbol t = peek();
 
-        switch (t.Class) {
-            case "IDENTIFY":
-                parseAssignment();
-                if (!peek().Value.equals(";"))
-                    throw new SemanticException("Esperado ';' após atribuição");
-                eat(); // ;
-                break;
-
-            case "COMMAND":
-                switch (t.Value.toString()) {
-                    case "Imprimir":
-                        parsePrint();
-                        if (!peek().Value.equals(";"))
-                            throw new SemanticException("Esperado ';' após comando Imprimir");
-                        eat(); // ;
-                        break;
-                    case "Se":
-                        parseIf();
-                        break;
-                    case "Enquanto":
-                        parseWhile();
-                        break;
-                    case "Para":
-                        parseFor();
-                        break;
-                    default:
-                        throw new SemanticException("Comando inválido: " + t.Value);
-                }
-                break;
-
-            case "SYMBOL":
-                if (t.Value.equals("{")) parseBlock();
-                else throw new SemanticException("Comando inválido: " + t.Value);
-                break;
-
-            default:
-                throw new SemanticException("Comando inválido: " + t.Value);
+        if (t.Class.equals("IDENTIFIER")) {
+            parseAssignment();
+            expect("SYMBOL"); // ;
+            return;
         }
+
+        if (t.Class.equals("COMMAND")) {
+            String cmd = t.Value.toString();
+            switch (cmd) {
+                case "Imprimir":
+                    parsePrint();
+                    expect("SYMBOL"); // ;
+                    return;
+                case "Se":
+                    parseIf();
+                    return;
+                case "Enquanto":
+                    parseWhile();
+                    return;
+                case "Para":
+                    parseFor();
+                    return;
+                default:
+                    throw new SemanticException("Comando inválido: " + cmd);
+            }
+        }
+
+        if (t.Class.equals("SYMBOL") && t.Value.equals("{")) {
+            parseBlock();
+            return;
+        }
+
+        throw new SemanticException("Comando inválido: " + t.Value);
     }
 
+    // IDENTIFIER '<-' EXPR
     private void parseAssignment() throws SemanticException {
-        ItemTableSymbol var = eat(); // IDENTIFY
-        if (!symbolTable.containsKey(var.Value.toString()))
-            throw new SemanticException("Variável não declarada: " + var.Value);
-
+        ItemTableSymbol id = eat(); // IDENTIFIER
+        if (!id.Class.equals("IDENTIFIER")) throw new SemanticException("Esperado identificador na atribuição");
+        String name = id.Value.toString().toLowerCase();
+        String varType = lookupVariable(name);
+        // consume '<-'
+        if (!checkValue("<-")) throw new SemanticException("Esperado '<-' na atribuição de: " + id.Value);
         eat(); // <-
-        ItemTableSymbol expr = parseExpr();
-
-        String type = symbolTable.get(var.Value.toString());
-        checkTypeCompatibility(type, expr);
+        String exprType = parseExpr();
+        checkTypeCompatibility(varType, exprType);
     }
 
+    // Imprimir '(' EXPR ')'
     private void parsePrint() throws SemanticException {
         eat(); // Imprimir
-        if (!peek().Value.equals("("))
-            throw new SemanticException("Esperado '(' após Imprimir");
-        eat(); // (
+        expect("(");
+        // permitir expressões de qualquer tipo (impressão concatenada com + resolvida no tipo)
         parseExpr();
-        if (!peek().Value.equals(")"))
-            throw new SemanticException("Esperado ')' após Imprimir");
-        eat(); // )
+        expect(")");
     }
 
+    // Se EXPR BLOCK (Senao BLOCK)?
     private void parseIf() throws SemanticException {
         eat(); // Se
-        ItemTableSymbol cond = parseExpr();
-        if (!isBoolean(cond))
-            throw new SemanticException("Condição do 'Se' deve ser lógica");
+        String condType = parseExpr();
+        if (!condType.equals("Logico")) throw new SemanticException("Condição de 'Se' deve ser Logico, encontrado: " + condType);
         parseBlock();
-        if (peek().Class.equals("COMMAND") && peek().Value.equals("Senao")) {
+        if (checkCommandValue("Senao")) {
             eat(); // Senao
             parseBlock();
         }
     }
 
+    // Enquanto EXPR BLOCK
     private void parseWhile() throws SemanticException {
         eat(); // Enquanto
-        ItemTableSymbol cond = parseExpr();
-        if (!isBoolean(cond))
-            throw new SemanticException("Condição do 'Enquanto' deve ser lógica");
+        String condType = parseExpr();
+        if (!condType.equals("Logico")) throw new SemanticException("Condição de 'Enquanto' deve ser Logico, encontrado: " + condType);
         parseBlock();
     }
 
+    /*
+      Para (TYPE)? IDENTIFIER em '(' EXPR ',' EXPR ',' EXPR ')' BLOCK
+      se TYPE fornecido: declara variavel local no escopo do for; caso contrário var já deve existir
+    */
     private void parseFor() throws SemanticException {
-    eat(); // Para
+        eat(); // Para
 
-    ItemTableSymbol tipo = null;
+        String declaredType = null;
+        if (peek().Class.equals("TYPE")) {
+            declaredType = eat().Value.toString();
+        }
 
-    // Tipo opcional
-    if (peek().Class.equals("TYPE")) {
-        tipo = eat(); // Inteiro, Logico ou Caractere
+        ItemTableSymbol var = eat(); // IDENTIFIER
+        if (!var.Class.equals("IDENTIFIER")) throw new SemanticException("Esperado identificador no For");
+        String varName = var.Value.toString().toLowerCase();
+
+        boolean declaredHere = false;
+        if (declaredType != null) {
+            if (currentScopeContains(varName)) throw new SemanticException("Variável já declarada no For: " + var.Value);
+            scopes.peek().put(varName, declaredType);
+            declaredHere = true;
+        } else {
+            // must exist in some outer scope
+            if (!variableExists(varName)) throw new SemanticException("Variável não declarada no For: " + var.Value);
+        }
+
+        // 'em'
+        if (!checkCommandValue("em")) throw new SemanticException("Esperado 'em' no For");
+        eat(); // em
+
+        expect("(");
+        String t1 = parseExpr(); // início
+        expect(","); 
+        String t2 = parseExpr(); // fim
+        expect(",");
+        String t3 = parseExpr(); // passo
+        expect(")");
+
+        // inicio/fim/passo precisam ser Inteiro
+        if (!t1.equals("Inteiro") || !t2.equals("Inteiro") || !t3.equals("Inteiro")) {
+            throw new SemanticException("Parâmetros do For devem ser Inteiro (inicio, fim, passo)");
+        }
+
+        parseBlock();
+
+        if (declaredHere) {
+            // remove var local do for
+            scopes.peek().remove(varName);
+        }
     }
-
-    // Variável do loop
-    ItemTableSymbol var = eat(); // IDENTIFY
-    if (tipo != null) {
-        // Declara variável no escopo do for
-        if (symbolTable.containsKey(var.Value.toString()))
-            throw new SemanticException("Variável já declarada no For: " + var.Value);
-        symbolTable.put(var.Value.toString(), tipo.Value.toString());
-    } else {
-        // Sem tipo declarado, a variável deve existir
-        if (!symbolTable.containsKey(var.Value.toString()))
-            throw new SemanticException("Variável não declarada no For: " + var.Value);
-    }
-
-    // resto da sintaxe
-    eat(); // em
-    if (!peek().Value.equals("(")) throw new SemanticException("Esperado '(' no For");
-    eat(); // (
-    parseExpr(); // início
-    if (!peek().Value.equals(",")) throw new SemanticException("Esperado ',' no For");
-    eat(); // ,
-    parseExpr(); // fim
-    if (!peek().Value.equals(",")) throw new SemanticException("Esperado ',' no For");
-    eat(); // ,
-    parseExpr(); // passo
-    if (!peek().Value.equals(")")) throw new SemanticException("Esperado ')' no For");
-    eat(); // )
-    parseBlock();
-
-    // Remove variável do for do escopo se tiver sido declarada localmente
-    if (tipo != null) {
-        symbolTable.remove(var.Value.toString());
-    }
-}
-
 
     private void parseBlock() throws SemanticException {
-        if (!peek().Value.equals("{")) throw new SemanticException("Esperado '{'");
-        eat(); // {
-        while (!peek().Value.equals("}")) {
+        expect("{");
+        // novo escopo
+        scopes.push(new HashMap<>());
+        while (!checkValue("}")) {
+            if (peek().Class.equals("EOF")) throw new SemanticException("Fim inesperado do arquivo dentro de bloco.");
             parseTopItem();
         }
-        eat(); // }
+        expect("SYMBOL"); // }
+        scopes.pop();
     }
 
-    private ItemTableSymbol parseExpr() throws SemanticException {
-        // Aqui você pode adaptar para parseOr / parseAnd / parseRel etc.
-        // Para simplificar, retornaremos o token atual como "tipo inferido"
-        ItemTableSymbol t = eat();
-        if (t.Class.equals("NUMERO")) return new ItemTableSymbol(0, "TipoInferido", t.asInteger(), 0);
-        if (t.Class.equals("CONST")) return new ItemTableSymbol(0, "TipoInferido", t.asBoolean(), 0);
-        if (t.Class.equals("STRING") || t.Class.equals("CARACTERE")) return new ItemTableSymbol(0, "TipoInferido", t.asString(), 0);
-        if (t.Class.equals("IDENTIFY")) {
-            String name = t.Value.toString();
-            if (!symbolTable.containsKey(name))
-                throw new SemanticException("Variável não declarada: " + name);
-            String type = symbolTable.get(name);
-            return new ItemTableSymbol(0, "TipoInferido", type.equals("Inteiro") ? 0 : type.equals("Logico") ? true : "", 0);
+    /* ------------------ EXPRESSÕES: devolvem String com tipo ("Inteiro","Logico","Caractere") ------------------ */
+
+    private boolean checkValue(String val) {
+        ItemTableSymbol t = peek();
+        return t.Value != null && t.Value.equals(val);
+    }
+
+    private boolean checkCommandValue(String val) {
+        ItemTableSymbol t = peek();
+        return t.Class.equals("COMMAND") && t.Value != null && t.Value.equals(val);
+    }
+
+    private String parseExpr() throws SemanticException { return parseOr(); }
+
+    private String parseOr() throws SemanticException {
+        String left = parseAnd();
+        while (peek().Class.equals("LOGIC_OPERATOR") && peek().Value.equals("^")) {
+            eat(); // ^
+            String right = parseAnd();
+            if (!left.equals("Logico") || !right.equals("Logico"))
+                throw new SemanticException("Operador '^' aplicado em tipos incompatíveis: " + left + ", " + right);
+            left = "Logico";
         }
-        return t;
+        return left;
     }
 
-    private void checkTypeCompatibility(String varType, ItemTableSymbol expr) throws SemanticException {
-        switch (varType) {
-            case "Inteiro":
-                if (!(expr.Value instanceof Integer))
-                    throw new SemanticException("Atribuição inválida: esperado Inteiro");
-                break;
-            case "Logico":
-                if (!(expr.Value instanceof Boolean))
-                    throw new SemanticException("Atribuição inválida: esperado Logico");
-                break;
-            case "Caractere":
-                if (!(expr.Value instanceof String))
-                    throw new SemanticException("Atribuição inválida: esperado Caractere");
-                break;
+    private String parseAnd() throws SemanticException {
+        String left = parseRel();
+        while (peek().Class.equals("LOGIC_OPERATOR") && peek().Value.equals("&")) {
+            eat(); // &
+            String right = parseRel();
+            if (!left.equals("Logico") || !right.equals("Logico"))
+                throw new SemanticException("Operador '&' aplicado em tipos incompatíveis: " + left + ", " + right);
+            left = "Logico";
+        }
+        return left;
+    }
+
+    private String parseRel() throws SemanticException {
+        String left = parseAdd();
+        if (peek().Class.equals("LOGIC_OPERATOR")) {
+            String op = peek().Value.toString();
+            if (op.equals("=") || op.equals("<>") || op.equals("<") || op.equals(">") || op.equals("<=") || op.equals(">=")) {
+                eat(); // operador
+                String right = parseAdd();
+                // equality (=, <>) allowed for same-type operands
+                if (op.equals("=") || op.equals("<>")) {
+                    if (!left.equals(right))
+                        throw new SemanticException("Operador '" + op + "' aplicado em tipos incompatíveis: " + left + ", " + right);
+                } else {
+                    // <,>,<=,>= require Inteiro operands
+                    if (!left.equals("Inteiro") || !right.equals("Inteiro"))
+                        throw new SemanticException("Operador '" + op + "' aplicado em tipos incompatíveis: " + left + ", " + right);
+                }
+                return "Logico";
+            }
+        }
+        return left;
+    }
+
+    private String parseAdd() throws SemanticException {
+        String left = parseMul();
+        while (peek().Class.equals("MATH_OPERATOR") && (peek().Value.equals("+") || peek().Value.equals("-"))) {
+            String op = eat().Value.toString(); // + or -
+            String right = parseMul();
+            if (op.equals("+")) {
+                // concatenação: se qualquer lado for Caractere -> Caractere
+                if (left.equals("Caractere") || right.equals("Caractere")) {
+                    left = "Caractere";
+                } else if (left.equals("Inteiro") && right.equals("Inteiro")) {
+                    left = "Inteiro";
+                } else {
+                    throw new SemanticException("Operador '+' aplicado em tipos incompatíveis: " + left + ", " + right);
+                }
+            } else { // '-'
+                if (!left.equals("Inteiro") || !right.equals("Inteiro"))
+                    throw new SemanticException("Operador '-' aplicado em tipos incompatíveis: " + left + ", " + right);
+                left = "Inteiro";
+            }
+        }
+        return left;
+    }
+
+    private String parseMul() throws SemanticException {
+        String left = parseExpo();
+        while (peek().Class.equals("MATH_OPERATOR") && (peek().Value.equals("*") || peek().Value.equals("/") || peek().Value.equals("%"))) {
+            String op = eat().Value.toString();
+            String right = parseExpo();
+            if (!left.equals("Inteiro") || !right.equals("Inteiro")) {
+                throw new SemanticException("Operador '" + op + "' aplicado em tipos incompatíveis: " + left + ", " + right);
+            }
+            left = "Inteiro";
+        }
+        return left;
+    }
+
+    private String parseExpo() throws SemanticException {
+        String left = parseUnary();
+        if (peek().Class.equals("MATH_OPERATOR") && peek().Value.equals("**")) {
+            eat(); // **
+            String right = parseExpo();
+            if (!left.equals("Inteiro") || !right.equals("Inteiro"))
+                throw new SemanticException("Operador '**' aplicado em tipos incompatíveis: " + left + ", " + right);
+            return "Inteiro";
+        }
+        return left;
+    }
+
+    private String parseUnary() throws SemanticException {
+        if (peek().Class.equals("MATH_OPERATOR") && (peek().Value.equals("+") || peek().Value.equals("-"))) {
+            String op = eat().Value.toString();
+            String v = parseUnary();
+            if (!v.equals("Inteiro")) throw new SemanticException("Operador unário '" + op + "' aplicado em tipo inválido: " + v);
+            return "Inteiro";
+        } else {
+            return parsePrimary();
         }
     }
 
-    private boolean isBoolean(ItemTableSymbol expr) {
-        return expr.Value instanceof Boolean;
+    private String parsePrimary() throws SemanticException {
+        ItemTableSymbol t = peek();
+        if (t.Class.equals("NUMERO")) {
+            eat();
+            return "Inteiro";
+        }
+        if (t.Class.equals("STRING") || t.Class.equals("CARACTERE")) {
+            eat();
+            return "Caractere";
+        }
+        if (t.Class.equals("CONST")) {
+            eat();
+            return "Logico";
+        }
+        if (t.Class.equals("IDENTIFIER")) {
+            ItemTableSymbol id = eat();
+            String name = id.Value.toString().toLowerCase();
+            String type = lookupVariable(name);
+            return type;
+        }
+        if (t.Class.equals("SYMBOL") && t.Value.equals("(")) {
+            eat(); // (
+            String ty = parseExpr();
+            expect("SYMBOL"); // )
+            return ty;
+        }
+
+        throw new SemanticException("Expressão primária inválida: " + t.Class + " (" + t.Value + ")");
+    }
+
+    // -------------------- Auxiliares de tipos e tabela de símbolos --------------------
+
+    private void checkTypeCompatibility(String expected, String actual) throws SemanticException {
+        if (!expected.equals(actual)) {
+            throw new SemanticException("Tipo incompatível: esperado " + expected + ", encontrado " + actual);
+        }
+    }
+
+    private boolean currentScopeContains(String nameLower) {
+        return scopes.peek().containsKey(nameLower);
+    }
+
+    private boolean variableExists(String nameLower) {
+        for (Map<String, String> s : scopes) {
+            if (s.containsKey(nameLower)) return true;
+        }
+        return false;
+    }
+
+    private String lookupVariable(String nameLower) throws SemanticException {
+        for (Map<String, String> s : scopes) {
+            if (s.containsKey(nameLower)) return s.get(nameLower);
+        }
+        throw new SemanticException("Variável não declarada: " + nameLower);
     }
 }
